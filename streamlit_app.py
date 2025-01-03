@@ -16,7 +16,7 @@ class FlappyBirdGame:
         
         # Physics variables
         self.vertical_speed = 0
-        self.gravity = 100  # EXTREME GRAVITY AS REQUESTED
+        self.gravity = 100  # EXTREME GRAVITY
         
         # Game state
         self.pipes = []
@@ -38,12 +38,12 @@ class FlappyBirdGame:
         })
     
     def jump(self):
-        # Give upward velocity when jumping
-        self.vertical_speed = -50  # Strong upward push to counter extreme gravity
+        # Give upward velocity when jumping (POSITIVE 50)
+        self.vertical_speed = 50  # Upward push
     
     def update(self):
         # Apply EXTREME gravity (increase downward speed)
-        self.vertical_speed += self.gravity
+        self.vertical_speed -= self.gravity
         self.bird_y += self.vertical_speed
         
         # Check ground collision
