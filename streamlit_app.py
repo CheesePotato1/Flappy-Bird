@@ -1,7 +1,6 @@
 import streamlit as st
 import numpy as np
 import random
-import time
 
 class FlappyBirdGame:
     def __init__(self, width=400, height=600):
@@ -118,25 +117,29 @@ def main():
     if jump_button:
         st.session_state.game.jump()
     
-    # Update and draw game
-    st.session_state.game.update()
+    # Only update and draw if game is active
+    if not st.session_state.game.is_game_over:
+        st.session_state.game.update()
+    
+    # Draw game
     game_image = draw_game(st.session_state.game)
     game_container.image(game_image, caption=f"Score: {st.session_state.game.score}")
     
     # Game over check
     if st.session_state.game.is_game_over:
         st.error("Game Over!")
-    
-    # Refresh
-    time.sleep(0.1)
-    st.experimental_rerun()
+        st.write(f"Final Score: {st.session_state.game.score}")
 
-if __name__ == "__main__":
-    main()
-
-# Create requirements file
-with open('requirements.txt', 'w') as f:
-    f.write("""
+def create_requirements_file():
+    with open('requirements.txt', 'w') as f:
+        f.write("""
 streamlit
 numpy
 """)
+
+# Create requirements file
+create_requirements_file()
+
+# Run the main function
+if __name__ == "__main__":
+    main()
