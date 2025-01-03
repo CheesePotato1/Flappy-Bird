@@ -13,8 +13,9 @@ class FlappyBirdGame:
         self.bird_x = self.width // 4
         self.bird_y = self.height // 2
         self.bird_velocity = 0
-        self.gravity = 0.5
-        self.jump_strength = -10
+        self.gravity = 0.8  # Increased gravity
+        self.jump_strength = -12  # Adjusted jump to counter increased gravity
+        self.bird_size = 30  # Larger bird size
         
         # Pipes
         self.pipes = []
@@ -23,38 +24,52 @@ class FlappyBirdGame:
         # Game state
         self.score = 0
         self.is_game_over = False
+        self.pipe_speed = 5  # Speed of pipes moving
     
     def spawn_pipe(self):
-        # Randomly position pipe opening
-        pipe_height = random.randint(100, self.height - 200)
+        # Randomly position pipe opening with more variable heights
+        gap_start = random.randint(100, self.height - 250)
+        gap_size = 150  # Fixed gap size
         self.pipes.append({
             'x': self.width,
-            'height': pipe_height
+            'top_height': gap_start,
+            'bottom_height': self.height - (gap_start + gap_size)
         })
     
     def jump(self):
         if not self.is_game_over:
+            # Apply jump velocity
             self.bird_velocity = self.jump_strength
     
     def update(self):
-        # Apply gravity
+        # Apply gravity (increases velocity downwards)
         self.bird_velocity += self.gravity
         self.bird_y += self.bird_velocity
         
-        # Check ground collision
-        if self.bird_y >= self.height or self.bird_y <= 0:
+        # Limit maximum falling speed
+        self.bird_velocity = min(self.bird_velocity, 15)
+        
+        # Check ground and ceiling collision
+        if self.bird_y >= self.height - 50 or self.bird_y <= 0:
             self.is_game_over = True
+            return
         
         # Move pipes
         for pipe in self.pipes:
-            pipe['x'] -= 5
+            pipe['x'] -= self.pipe_speed
             
-            # Check pipe collision
-            if (self.bird_x < pipe['x'] + 50 and 
-                self.bird_x + 20 > pipe['x'] and
-                (self.bird_y < pipe['height'] or 
-                 self.bird_y > pipe['height'] + 150)):
-                self.is_game_over = True
+            # Collision detection with more precise hitbox
+            if (self.bird_x + self.bird_size/2 > pipe['x'] and 
+                self.bird_x - self.bird_size/2 < pipe['x'] + 50):
+                # Check top pipe collision
+                if self.bird_y - self.bird_size/2 < pipe['top_height']:
+                    self.is_game_over = True
+                    return
+                
+                # Check bottom pipe collision
+                if self.bird_y + self.bird_size/2 > self.height - pipe['bottom_height']:
+                    self.is_game_over = True
+                    return
         
         # Remove off-screen pipes
         self.pipes = [p for p in self.pipes if p['x'] > -50]
@@ -64,35 +79,41 @@ class FlappyBirdGame:
             self.spawn_pipe()
         
         # Update score
-        if self.pipes and self.pipes[0]['x'] + 50 < self.bird_x:
-            self.score += 1
+        for pipe in self.pipes:
+            if pipe['x'] + 50 < self.bird_x and not pipe.get('scored', False):
+                self.score += 1
+                pipe['scored'] = True
 
 def draw_game(game):
-    # Create a blank canvas
+    # Create a blank canvas with sky blue background
     canvas = np.full((game.height, game.width, 3), 135, dtype=np.uint8)
     
-    # Draw ground
+    # Draw ground (darker green)
     canvas[game.height-50:, :] = [34, 139, 34]
     
     # Draw pipes
     for pipe in game.pipes:
-        # Top pipe
-        canvas[:pipe['height'], pipe['x']:pipe['x']+50] = [0, 255, 0]
-        # Bottom pipe
-        canvas[pipe['height']+150:, pipe['x']:pipe['x']+50] = [0, 255, 0]
+        # Top pipe (green)
+        canvas[:int(pipe['top_height']), pipe['x']:pipe['x']+50] = [0, 255, 0]
+        
+        # Bottom pipe (green)
+        canvas[game.height-int(pipe['bottom_height']):game.height, 
+               pipe['x']:pipe['x']+50] = [0, 255, 0]
     
     # Draw bird
-    bird_size = 20
-    x1 = max(0, game.bird_x - bird_size//2)
-    x2 = min(game.width, game.bird_x + bird_size//2)
-    y1 = max(0, int(game.bird_y) - bird_size//2)
-    y2 = min(game.height, int(game.bird_y) + bird_size//2)
+    bird_size = game.bird_size
+    x1 = max(0, int(game.bird_x - bird_size/2))
+    x2 = min(game.width, int(game.bird_x + bird_size/2))
+    y1 = max(0, int(game.bird_y - bird_size/2))
+    y2 = min(game.height, int(game.bird_y + bird_size/2))
+    
+    # Red bird
     canvas[y1:y2, x1:x2] = [255, 0, 0]
     
     return canvas
 
 def main():
-    st.title("Flappy Bird")
+    st.title("Flappy Bird with Gravity")
     
     # Initialize game state
     if 'game' not in st.session_state:
