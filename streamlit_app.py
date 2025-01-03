@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
 import random
+import time
 
 class FlappyBirdGame:
     def __init__(self, width=400, height=600):
@@ -40,6 +41,7 @@ class FlappyBirdGame:
     def jump(self):
         # Give upward velocity when jumping
         self.velocity_y = -8  # Upward push (negative to go up)
+        st.write(f"Jumped! Current velocity: {self.velocity_y}")
     
     def update(self):
         # Apply gravity to velocity
@@ -49,7 +51,7 @@ class FlappyBirdGame:
         self.bird_y += self.velocity_y
         
         # Debug information
-        st.write(f"Position: {self.bird_y}, Velocity: {self.velocity_y}")
+        st.write(f"Gravity Applied - Position: {self.bird_y:.2f}, Velocity: {self.velocity_y:.2f}")
         
         # Check ground collision
         if self.bird_y >= self.height - 50:
@@ -157,6 +159,10 @@ def main():
     if st.session_state.game.is_game_over:
         st.error("Game Over!")
         st.write(f"Final Score: {st.session_state.game.score}")
+    
+    # Add a small delay to control update frequency
+    time.sleep(0.1)
+    st.experimental_rerun()
 
 # Create requirements file
 def create_requirements_file():
