@@ -1,158 +1,188 @@
 import streamlit as st
-import numpy as np
-from PIL import Image, ImageDraw
+import random
+import json
+from dataclasses import dataclass
+from typing import List, Dict
 import time
 
-# Bird class
-class Bird:
+@dataclass
+class Character:
+    name: str
+    hp: int
+    max_hp: int
+    attack: int
+    defense: int
+    gold: int
+    exp: int
+    level: int
+    inventory: List[str]
+
+@dataclass
+class Enemy:
+    name: str
+    hp: int
+    attack: int
+    defense: int
+    gold: int
+    exp: int
+
+class Game:
     def __init__(self):
-        self.y = 250
-        self.x = 50
-        self.vel = 0
-        self.gravity = 0.5
-        self.jump_strength = -8
+        if 'character' not in st.session_state:
+            st.session_state.character = Character(
+                name="Hero",
+                hp=100,
+                max_hp=100,
+                attack=10,
+                defense=5,
+                gold=0,
+                exp=0,
+                level=1,
+                inventory=["Potion"]
+            )
+        
+        self.enemies = {
+            'Slime': Enemy("Slime", 30, 5, 2, 5, 10),
+            'Goblin': Enemy("Goblin", 45, 8, 3, 10, 15),
+            'Wolf': Enemy("Wolf", 60, 12, 4, 15, 20),
+            'Dragon': Enemy("Dragon", 200, 25, 15, 100, 200)
+        }
+        
+        self.items = {
+            'Potion': {'type': 'heal', 'value': 30, 'cost': 10},
+            'Sword': {'type': 'attack', 'value': 5, 'cost': 50},
+            'Shield': {'type': 'defense', 'value': 3, 'cost': 40}
+        }
 
-    def jump(self):
-        self.vel = self.jump_strength
+    def level_up_check(self):
+        exp_needed = st.session_state.character.level * 100
+        if st.session_state.character.exp >= exp_needed:
+            st.session_state.character.level += 1
+            st.session_state.character.max_hp += 20
+            st.session_state.character.hp = st.session_state.character.max_hp
+            st.session_state.character.attack += 5
+            st.session_state.character.defense += 3
+            st.session_state.character.exp -= exp_needed
+            return True
+        return False
 
-    def update(self):
-        self.vel += self.gravity
-        self.y += self.vel
+    def battle(self, enemy_name: str) -> str:
+        enemy = self.enemies[enemy_name]
+        enemy_hp = enemy.hp
+        
+        while enemy_hp > 0 and st.session_state.character.hp > 0:
+            # Player attack
+            damage = max(0, st.session_state.character.attack - enemy.defense)
+            enemy_hp -= damage
+            
+            if enemy_hp <= 0:
+                st.session_state.character.gold += enemy.gold
+                st.session_state.character.exp += enemy.exp
+                leveled_up = self.level_up_check()
+                
+                result = f"Won! Gained {enemy.gold} gold and {enemy.exp} exp."
+                if leveled_up:
+                    result += f"\nLevel Up! Now level {st.session_state.character.level}"
+                return result
+            
+            # Enemy attack
+            damage = max(0, enemy.attack - st.session_state.character.defense)
+            st.session_state.character.hp -= damage
+            
+            if st.session_state.character.hp <= 0:
+                st.session_state.character.hp = 1
+                st.session_state.character.gold = max(0, st.session_state.character.gold - 10)
+                return "Defeated! Lost 10 gold..."
 
-# Pipe class
-class Pipe:
-    def __init__(self, x):
-        self.x = x
-        self.gap_y = np.random.randint(100, 400)
-        self.gap_size = 150
-        self.speed = 3
+    def use_item(self, item: str) -> str:
+        if item not in st.session_state.character.inventory:
+            return "Don't have this item!"
+        
+        st.session_state.character.inventory.remove(item)
+        
+        if item == 'Potion':
+            heal = min(
+                self.items[item]['value'],
+                st.session_state.character.max_hp - st.session_state.character.hp
+            )
+            st.session_state.character.hp += heal
+            return f"Healed {heal} HP!"
+            
+        elif item == 'Sword':
+            st.session_state.character.attack += self.items[item]['value']
+            return f"Attack increased by {self.items[item]['value']}!"
+            
+        elif item == 'Shield':
+            st.session_state.character.defense += self.items[item]['value']
+            return f"Defense increased by {self.items[item]['value']}!"
 
-    def update(self):
-        self.x -= self.speed
+    def buy_item(self, item: str) -> str:
+        if item not in self.items:
+            return "Item doesn't exist!"
+            
+        if st.session_state.character.gold < self.items[item]['cost']:
+            return "Not enough gold!"
+            
+        st.session_state.character.gold -= self.items[item]['cost']
+        st.session_state.character.inventory.append(item)
+        return f"Bought {item}!"
 
-    def collides_with(self, bird):
-        bird_rect = [bird.x, bird.y, bird.x + 30, bird.y + 30]
-        top_pipe = [self.x, 0, self.x + 50, self.gap_y]
-        bottom_pipe = [self.x, self.gap_y + self.gap_size, self.x + 50, 600]
-        return (
-            self.rect_overlap(bird_rect, top_pipe) or
-            self.rect_overlap(bird_rect, bottom_pipe)
-        )
-
-    @staticmethod
-    def rect_overlap(rect1, rect2):
-        return not (
-            rect1[2] < rect2[0] or
-            rect1[0] > rect2[2] or
-            rect1[3] < rect2[1] or
-            rect1[1] > rect2[3]
-        )
-
-# Initialize game state
-def init_game_state():
-    if "bird" not in st.session_state:
-        st.session_state.bird = Bird()
-    if "pipes" not in st.session_state:
-        st.session_state.pipes = [Pipe(600)]
-    if "score" not in st.session_state:
-        st.session_state.score = 0
-    if "game_over" not in st.session_state:
-        st.session_state.game_over = False
-    if "game_started" not in st.session_state:
-        st.session_state.game_started = False
-    if "last_update" not in st.session_state:
-        st.session_state.last_update = time.time()
-
-# Reset game state
-def reset_game():
-    st.session_state.bird = Bird()
-    st.session_state.pipes = [Pipe(600)]
-    st.session_state.score = 0
-    st.session_state.game_over = False
-    st.session_state.game_started = False
-    st.session_state.last_update = time.time()
-
-# Main game function
 def main():
-    st.title("Flappy Bird")
+    st.title("Streamlit RPG")
+    
+    game = Game()
+    char = st.session_state.character
 
-    init_game_state()
-
-    # Game controls
+    # Main game interface
     col1, col2 = st.columns(2)
+    
     with col1:
-        if st.button("Jump", key="jump"):
-            if not st.session_state.game_started:
-                st.session_state.game_started = True
-            st.session_state.bird.jump()
+        st.subheader("Character")
+        st.write(f"Level: {char.level}")
+        st.write(f"HP: {char.hp}/{char.max_hp}")
+        st.write(f"Attack: {char.attack}")
+        st.write(f"Defense: {char.defense}")
+        st.write(f"Gold: {char.gold}")
+        st.write(f"EXP: {char.exp}/{char.level * 100}")
+        
+        st.subheader("Inventory")
+        for item in char.inventory:
+            if st.button(f"Use {item}"):
+                result = game.use_item(item)
+                st.write(result)
+    
     with col2:
-        if st.button("Reset Game", key="reset"):
-            reset_game()
+        st.subheader("Shop")
+        for item, details in game.items.items():
+            cost = details['cost']
+            if st.button(f"Buy {item} ({cost} gold)"):
+                result = game.buy_item(item)
+                st.write(result)
+    
+    st.subheader("Battle")
+    for enemy_name in game.enemies:
+        if st.button(f"Fight {enemy_name}"):
+            result = game.battle(enemy_name)
+            st.write(result)
 
-    # Game canvas
-    canvas = st.empty()
-
-    # Game loop
-    while not st.session_state.game_over:
-        # Update bird
-        st.session_state.bird.update()
-
-        # Update pipes
-        for pipe in st.session_state.pipes:
-            pipe.update()
-
-            # Check collisions
-            if pipe.collides_with(st.session_state.bird):
-                st.session_state.game_over = True
-
-        # Remove pipes that are off-screen and add new ones
-        st.session_state.pipes = [p for p in st.session_state.pipes if p.x > -50]
-        if len(st.session_state.pipes) > 0 and st.session_state.pipes[-1].x < 400:
-            st.session_state.pipes.append(Pipe(600))
-
-        # Update score
-        for pipe in st.session_state.pipes:
-            if pipe.x + 50 < st.session_state.bird.x and not hasattr(pipe, "scored"):
-                st.session_state.score += 1
-                pipe.scored = True
-
-        # Check if bird is out of bounds
-        if st.session_state.bird.y < 0 or st.session_state.bird.y > 600:
-            st.session_state.game_over = True
-
-        # Render game state
-        img = Image.new("RGB", (800, 600), color=(135, 206, 235))  # Sky blue background
-        draw = ImageDraw.Draw(img)
-
-        # Draw pipes
-        for pipe in st.session_state.pipes:
-            draw.rectangle([pipe.x, 0, pipe.x + 50, pipe.gap_y], fill=(34, 139, 34))  # Top pipe
-            draw.rectangle(
-                [pipe.x, pipe.gap_y + pipe.gap_size, pipe.x + 50, 600],
-                fill=(34, 139, 34),
-            )  # Bottom pipe
-
-        # Draw bird
-        draw.ellipse(
-            [
-                st.session_state.bird.x,
-                st.session_state.bird.y,
-                st.session_state.bird.x + 30,
-                st.session_state.bird.y + 30,
-            ],
-            fill=(255, 255, 0),
-        )  # Bird as a yellow circle
-
-        # Display game
-        canvas.image(img)
-
-        # Display score
-        st.write(f"Score: {st.session_state.score}")
-
-        time.sleep(0.05)  # Control game speed (20 FPS)
-
-    # Game over message
-    st.write("Game Over! Press Reset to play again.")
+    # Save button
+    if st.button("Save Game"):
+        save_data = {
+            'name': char.name,
+            'hp': char.hp,
+            'max_hp': char.max_hp,
+            'attack': char.attack,
+            'defense': char.defense,
+            'gold': char.gold,
+            'exp': char.exp,
+            'level': char.level,
+            'inventory': char.inventory
+        }
+        st.download_button(
+            "Download Save File",
+            data=json.dumps(save_data),
+            file_name="rpg_save.json"
+        )
 
 if __name__ == "__main__":
     main()
