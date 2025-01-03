@@ -6,70 +6,134 @@ class FlappyBirdGame:
     def __init__(self, width=400, height=600):
         self.width = width
         self.height = height
+        self.bird_size = 30
         self.reset()
     
     def reset(self):
-        # Bird starting position
+        # Bird starting position (middle of screen)
+        self.bird_x = self.width // 4
         self.bird_y = self.height // 2
         
         # Physics variables
         self.velocity = 0
-        self.gravity = 0.5
+        self.gravity = 1  # Gravity constant
         
         # Game state
+        self.pipes = []
         self.score = 0
-        self.game_over = False
+        self.is_game_over = False
+        
+        # Spawn initial pipe
+        self.spawn_pipe()
+    
+    def spawn_pipe(self):
+        # Create a pipe with a random height
+        gap_height = 200  # Size of the gap
+        pipe_height = random.randint(100, self.height - gap_height - 100)
+        
+        self.pipes.append({
+            'x': self.width,
+            'top_height': pipe_height,
+            'bottom_height': self.height - (pipe_height + gap_height)
+        })
     
     def jump(self):
-        # Upward velocity when jumping
-        self.velocity = -5
+        # Jump gives upward velocity (negative)
+        self.velocity = -10
     
     def update(self):
-        # Apply gravity
+        # Apply gravity (increases downward velocity)
         self.velocity += self.gravity
+        
+        # Update bird position
         self.bird_y += self.velocity
         
-        # Boundary checks
-        if self.bird_y >= self.height or self.bird_y <= 0:
-            self.game_over = True
+        # Prevent going below ground
+        if self.bird_y > self.height - 50:
+            self.bird_y = self.height - 50
+            self.is_game_over = True
+        
+        # Prevent going above ceiling
+        if self.bird_y < 0:
+            self.bird_y = 0
+        
+        # Move pipes
+        for pipe in self.pipes:
+            pipe['x'] -= 5  # Move pipes to the left
+            
+            # Collision detection
+            if (self.bird_x + self.bird_size/2 > pipe['x'] and 
+                self.bird_x - self.bird_size/2 < pipe['x'] + 50):
+                # Check top pipe collision
+                if self.bird_y - self.bird_size/2 < pipe['top_height']:
+                    self.is_game_over = True
+                    return
+                
+                # Check bottom pipe collision
+                if self.bird_y + self.bird_size/2 > self.height - pipe['bottom_height']:
+                    self.is_game_over = True
+                    return
+        
+        # Remove old pipes
+        self.pipes = [p for p in self.pipes if p['x'] > -50]
+        
+        # Spawn new pipes
+        if not self.pipes or self.pipes[-1]['x'] < self.width - 200:
+            self.spawn_pipe()
+        
+        # Update score
+        for pipe in self.pipes:
+            if pipe['x'] + 50 < self.bird_x and not pipe.get('scored', False):
+                self.score += 1
+                pipe['scored'] = True
 
-def draw_bird(height, bird_y):
-    # Create a canvas
-    canvas = np.full((height, 400, 3), 135, dtype=np.uint8)
+def draw_game(game):
+    # Create canvas
+    canvas = np.full((game.height, game.width, 3), 135, dtype=np.uint8)
     
     # Draw ground
-    canvas[height-50:, :] = [34, 139, 34]
+    canvas[game.height-50:, :] = [34, 139, 34]
     
-    # Draw bird (red square)
-    bird_size = 30
-    x1 = 50
-    x2 = x1 + bird_size
-    y1 = int(bird_y) - bird_size // 2
-    y2 = int(bird_y) + bird_size // 2
+    # Draw pipes
+    for pipe in game.pipes:
+        # Top pipe
+        canvas[:int(pipe['top_height']), pipe['x']:pipe['x']+50] = [0, 255, 0]
+        
+        # Bottom pipe
+        canvas[game.height-int(pipe['bottom_height']):game.height, 
+               pipe['x']:pipe['x']+50] = [0, 255, 0]
     
-    # Ensure bird is within canvas bounds
-    y1 = max(0, y1)
-    y2 = min(height, y2)
+    # Draw bird
+    bird_size = game.bird_size
+    x1 = max(0, int(game.bird_x - bird_size/2))
+    x2 = min(game.width, int(game.bird_x + bird_size/2))
+    y1 = max(0, int(game.bird_y - bird_size/2))
+    y2 = min(game.height, int(game.bird_y + bird_size/2))
     
+    # Red bird
     canvas[y1:y2, x1:x2] = [255, 0, 0]
     
     return canvas
 
 def main():
-    st.title("Simple Gravity Simulation")
+    st.title("Flappy Bird with Gravity")
     
-    # Initialize game if not already initialized
+    # Initialize game state
     if 'game' not in st.session_state:
         st.session_state.game = FlappyBirdGame()
     
     # Game display
     game_container = st.empty()
     
+    # Debug info
+    st.write(f"Bird Y: {st.session_state.game.bird_y:.2f}")
+    st.write(f"Velocity: {st.session_state.game.velocity:.2f}")
+    
     # Controls
     col1, col2 = st.columns(2)
     
     with col1:
-        start_button = st.button("Reset")
+        start_button = st.button("Start/Reset Game")
     
     with col2:
         jump_button = st.button("Jump")
@@ -81,20 +145,25 @@ def main():
     if jump_button:
         st.session_state.game.jump()
     
-    # Update and draw game if not over
-    if not st.session_state.game.game_over:
+    # Update game if not game over
+    if not st.session_state.game.is_game_over:
         st.session_state.game.update()
     
     # Draw game
-    game_image = draw_bird(
-        st.session_state.game.height, 
-        st.session_state.game.bird_y
-    )
-    game_container.image(game_image, caption=f"Bird Y: {st.session_state.game.bird_y:.2f}")
+    game_image = draw_game(st.session_state.game)
+    game_container.image(game_image, caption=f"Score: {st.session_state.game.score}")
     
     # Game over check
-    if st.session_state.game.game_over:
+    if st.session_state.game.is_game_over:
         st.error("Game Over!")
+        st.write(f"Final Score: {st.session_state.game.score}")
+
+# Create requirements file
+def create_requirements_file():
+    with open('requirements.txt', 'w') as f:
+        f.write("streamlit\nnumpy")
+
+create_requirements_file()
 
 # Run main function
 if __name__ == "__main__":
