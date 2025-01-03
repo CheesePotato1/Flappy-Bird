@@ -146,27 +146,27 @@ def main():
         st.write(f"EXP: {char.exp}/{char.level * 100}")
         
         st.subheader("Inventory")
-        for item in char.inventory:
-            if st.button(f"Use {item}"):
+        for i, item in enumerate(char.inventory):
+            if st.button(f"Use {item}", key=f"use_{i}_{item}"):
                 result = game.use_item(item)
                 st.write(result)
     
     with col2:
         st.subheader("Shop")
-        for item, details in game.items.items():
+        for i, (item, details) in enumerate(game.items.items()):
             cost = details['cost']
-            if st.button(f"Buy {item} ({cost} gold)"):
+            if st.button(f"Buy {item} ({cost} gold)", key=f"buy_{i}_{item}"):
                 result = game.buy_item(item)
                 st.write(result)
     
     st.subheader("Battle")
-    for enemy_name in game.enemies:
-        if st.button(f"Fight {enemy_name}"):
+    for i, enemy_name in enumerate(game.enemies):
+        if st.button(f"Fight {enemy_name}", key=f"fight_{i}_{enemy_name}"):
             result = game.battle(enemy_name)
             st.write(result)
 
     # Save button
-    if st.button("Save Game"):
+    if st.button("Save Game", key="save_game"):
         save_data = {
             'name': char.name,
             'hp': char.hp,
@@ -181,7 +181,8 @@ def main():
         st.download_button(
             "Download Save File",
             data=json.dumps(save_data),
-            file_name="rpg_save.json"
+            file_name="rpg_save.json",
+            key="download_save"
         )
 
 if __name__ == "__main__":
