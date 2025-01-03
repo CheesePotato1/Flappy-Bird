@@ -24,7 +24,7 @@ DIFFICULTY_SETTINGS = {
         'GRAVITY': 0.5,
         'JUMP_VELOCITY': -8,
         'PIPE_SPEED': 3,
-        'PIPE_GAP': 140,  # Original Flappy Bird gap size
+        'PIPE_GAP': 140,
         'PIPE_SPAWN_TIME': 2,
         'COLOR': 'green'
     },
@@ -53,7 +53,7 @@ GAME_HEIGHT = 600
 # Initialize game state
 if 'game_state' not in st.session_state:
     st.session_state.game_state = {
-        'bird_y': 200,
+        'bird_y': GAME_HEIGHT // 2,  # Start in middle of screen
         'bird_velocity': 0,
         'pipes': [],
         'score': 0,
@@ -98,16 +98,16 @@ def create_bird_image(size):
     wing_color = (212, 156, 35)  # Darker orange
     face_color = (241, 141, 41)  # Orange for beak
     
-    # Main body
-    draw.rectangle([4, 4, size-4, size-4], fill=body_color)
+    # Main body - make it square/pixelated
+    draw.rectangle([2, 2, size-2, size-2], fill=body_color)
     # Wing
-    draw.rectangle([6, size//2, size//2, size-6], fill=wing_color)
+    draw.rectangle([4, size//2, size//2, size-4], fill=wing_color)
     # Eye (white)
-    draw.ellipse([size//1.5, size//4, size-6, size//2], fill='white')
+    draw.rectangle([size//1.5, size//4, size-4, size//2], fill='white')
     # Eye (black)
-    draw.ellipse([size//1.4, size//3.5, size-8, size//2.2], fill='black')
+    draw.rectangle([size//1.4, size//3.5, size-6, size//2.2], fill='black')
     # Beak
-    draw.polygon([(size-6, size//2), (size-2, size//1.8), (size-6, size//1.5)], fill=face_color)
+    draw.rectangle([size-6, size//2-2, size-2, size//1.5], fill=face_color)
     
     return bird
 
@@ -115,13 +115,13 @@ def create_background():
     bg = Image.new('RGB', (GAME_WIDTH, GAME_HEIGHT), (78, 192, 202))  # Light blue
     draw = ImageDraw.Draw(bg)
     
-    # Add clouds (simple white shapes)
-    cloud_color = (255, 255, 255)
-    for i in range(0, GAME_WIDTH, 120):
-        y_pos = np.random.randint(50, 150)
-        draw.ellipse([i, y_pos, i+60, y_pos+30], fill=cloud_color)
+    # Add simple city skyline in background
+    city_color = (74, 182, 192)  # Slightly darker blue
+    for i in range(0, GAME_WIDTH, 40):
+        height = np.random.randint(50, 100)
+        draw.rectangle([i, GAME_HEIGHT-height-70, i+30, GAME_HEIGHT-70], fill=city_color)
     
-    # Add ground (original green color)
+    # Add ground
     ground_color = (221, 216, 148)  # Beige ground
     draw.rectangle([0, GAME_HEIGHT-70, GAME_WIDTH, GAME_HEIGHT], fill=ground_color)
     
@@ -133,7 +133,8 @@ def create_game_frame():
     
     # Get bird image
     bird = create_bird_image(40)
-    bird = bird.rotate(-st.session_state.game_state['bird_velocity'] * 2)  # Tilt based on velocity
+    if st.session_state.game_state['game_active']:
+        bird = bird.rotate(-st.session_state.game_state['bird_velocity'] * 2)  # Tilt based on velocity
     
     # Paste bird onto frame
     bird_x = 100 - 20
@@ -162,7 +163,7 @@ def create_game_frame():
     return frame
 
 def reset_game():
-    st.session_state.game_state['bird_y'] = 200
+    st.session_state.game_state['bird_y'] = GAME_HEIGHT // 2
     st.session_state.game_state['bird_velocity'] = 0
     st.session_state.game_state['pipes'] = []
     st.session_state.game_state['score'] = 0
@@ -254,10 +255,9 @@ with col2:
     difficulty = st.session_state.game_state['difficulty']
     st.write(f"High Score ({difficulty.capitalize()}): {st.session_state.game_state['high_score'][difficulty]}")
 
-# Game canvas
-if st.session_state.game_state['game_active'] or st.session_state.game_state['game_over']:
-    game_frame = create_game_frame()
-    st.image(game_frame, use_container_width=True)
+# Game canvas - always show
+game_frame = create_game_frame()
+st.image(game_frame, use_container_width=True)
 
 if st.session_state.game_state['game_over']:
     st.write(f"Game Over! Final Score: {st.session_state.game_state['score']}")
@@ -268,4 +268,4 @@ if st.session_state.game_state['game_over']:
 if st.session_state.game_state['game_active']:
     update_game()
     time.sleep(0.03)
-    st.rerun()  # Changed from st.experimental_rerun()
+    st.rerun()
