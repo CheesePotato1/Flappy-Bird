@@ -1,183 +1,215 @@
-import streamlit as st
-import random
-import time
-import numpy as np
-import cv2
+import React, { useState, useEffect } from 'react';
 
-class FlappyBirdGame:
-    def __init__(self):
-        # Game constants
-        self.WIDTH = 400
-        self.HEIGHT = 600
-        self.BIRD_RADIUS = 20
-        self.PIPE_WIDTH = 50
-        self.PIPE_GAP = 200
-        
-        # Game state variables
-        self.reset()
-    
-    def reset(self):
-        # Bird position and physics
-        self.bird_y = self.HEIGHT // 2
-        self.bird_velocity = 0
-        self.gravity = 0.5
-        self.jump_strength = -10
-        
-        # Pipes
-        self.pipes = []
-        self.spawn_pipe()
-        
-        # Game state
-        self.is_active = True
-        self.is_game_over = False
-        self.score = 0
-    
-    def spawn_pipe(self):
-        # Randomly position pipe opening
-        pipe_height = random.randint(100, self.HEIGHT - 100 - self.PIPE_GAP)
-        self.pipes.append({
-            'x': self.WIDTH,
-            'top_height': pipe_height,
-            'bottom_height': self.HEIGHT - (pipe_height + self.PIPE_GAP)
-        })
-    
-    def update(self):
-        if not self.is_active or self.is_game_over:
-            return
-        
-        # Apply gravity to bird
-        self.bird_velocity += self.gravity
-        self.bird_y += self.bird_velocity
-        
-        # Check for ground collision
-        if self.bird_y >= self.HEIGHT or self.bird_y <= 0:
-            self.is_game_over = True
-            self.is_active = False
-            return
-        
-        # Move pipes
-        for pipe in self.pipes:
-            pipe['x'] -= 5
-            
-            # Check collision with pipes
-            if (pipe['x'] < self.BIRD_RADIUS * 2 and 
-                pipe['x'] + self.PIPE_WIDTH > 0):
-                # Check vertical collision
-                if (self.bird_y < pipe['top_height'] or 
-                    self.bird_y > self.HEIGHT - pipe['bottom_height']):
-                    self.is_game_over = True
-                    self.is_active = False
-                    return
-        
-        # Remove off-screen pipes and spawn new ones
-        self.pipes = [p for p in self.pipes if p['x'] > -self.PIPE_WIDTH]
-        
-        # Spawn new pipes
-        if not self.pipes or self.pipes[-1]['x'] < self.WIDTH - 200:
-            self.spawn_pipe()
-        
-        # Update score
-        for pipe in self.pipes:
-            if pipe['x'] + self.PIPE_WIDTH < self.BIRD_RADIUS * 2:
-                self.score += 1
-    
-    def jump(self):
-        if self.is_active and not self.is_game_over:
-            self.bird_velocity = self.jump_strength
+const FlappyBirdGame = () => {
+  const [gameState, setGameState] = useState({
+    birdY: 200,
+    birdVelocity: 0,
+    pipes: [],
+    score: 0,
+    isGameOver: false,
+    isPlaying: false
+  });
 
-def draw_game(game):
-    # Create a blank canvas
-    canvas = np.zeros((game.HEIGHT, game.WIDTH, 3), dtype=np.uint8)
-    canvas.fill(135)  # Sky blue background
+  const CANVAS_HEIGHT = 400;
+  const CANVAS_WIDTH = 300;
+  const BIRD_SIZE = 20;
+  const PIPE_WIDTH = 40;
+  const PIPE_GAP = 150;
+
+  const resetGame = () => {
+    setGameState({
+      birdY: CANVAS_HEIGHT / 2,
+      birdVelocity: 0,
+      pipes: [],
+      score: 0,
+      isGameOver: false,
+      isPlaying: true
+    });
+    spawnPipe();
+  };
+
+  const spawnPipe = () => {
+    const newPipes = [...gameState.pipes];
+    const pipeHeight = Math.random() * (CANVAS_HEIGHT - PIPE_GAP - 100) + 50;
     
-    # Draw ground
-    cv2.rectangle(canvas, 
-                  (0, game.HEIGHT - 50), 
-                  (game.WIDTH, game.HEIGHT), 
-                  (34, 139, 34), 
-                  -1)  # Green ground
+    newPipes.push({
+      x: CANVAS_WIDTH,
+      topHeight: pipeHeight,
+      bottomHeight: CANVAS_HEIGHT - pipeHeight - PIPE_GAP
+    });
+
+    setGameState(prev => ({
+      ...prev,
+      pipes: newPipes
+    }));
+  };
+
+  const updateGame = () => {
+    if (!gameState.isPlaying || gameState.isGameOver) return;
+
+    // Apply gravity
+    const newVelocity = gameState.birdVelocity + 0.5;
+    const newBirdY = gameState.birdY + newVelocity;
+
+    // Check ground/ceiling collision
+    if (newBirdY >= CANVAS_HEIGHT - BIRD_SIZE || newBirdY <= 0) {
+      setGameState(prev => ({
+        ...prev,
+        isGameOver: true,
+        isPlaying: false
+      }));
+      return;
+    }
+
+    // Move and filter pipes
+    const updatedPipes = gameState.pipes
+      .map(pipe => ({ ...pipe, x: pipe.x - 3 }))
+      .filter(pipe => pipe.x > -PIPE_WIDTH);
+
+    // Spawn new pipes
+    if (updatedPipes.length === 0 || 
+        updatedPipes[updatedPipes.length - 1].x < CANVAS_WIDTH - 200) {
+      spawnPipe();
+    }
+
+    // Collision detection
+    const checkCollision = updatedPipes.some(pipe => 
+      pipe.x < BIRD_SIZE && 
+      pipe.x + PIPE_WIDTH > 0 && 
+      (newBirdY < pipe.topHeight || 
+       newBirdY > CANVAS_HEIGHT - pipe.bottomHeight)
+    );
+
+    if (checkCollision) {
+      setGameState(prev => ({
+        ...prev,
+        isGameOver: true,
+        isPlaying: false
+      }));
+      return;
+    }
+
+    // Update game state
+    setGameState(prev => ({
+      ...prev,
+      birdY: newBirdY,
+      birdVelocity: newVelocity,
+      pipes: updatedPipes,
+      score: prev.score + (updatedPipes.some(pipe => pipe.x + PIPE_WIDTH < 0) ? 1 : 0)
+    }));
+  };
+
+  const jump = () => {
+    if (!gameState.isPlaying || gameState.isGameOver) return;
+    setGameState(prev => ({
+      ...prev,
+      birdVelocity: -8
+    }));
+  };
+
+  // Game loop
+  useEffect(() => {
+    let animationFrameId;
     
-    # Draw pipes
-    for pipe in game.pipes:
-        # Top pipe
-        cv2.rectangle(canvas, 
-                      (int(pipe['x']), 0), 
-                      (int(pipe['x'] + game.PIPE_WIDTH), int(pipe['top_height'])), 
-                      (0, 255, 0), 
-                      -1)
+    if (gameState.isPlaying && !gameState.isGameOver) {
+      animationFrameId = requestAnimationFrame(updateGame);
+    }
+
+    return () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    };
+  }, [gameState.isPlaying, gameState.isGameOver]);
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+      <h1 className="text-2xl font-bold mb-4">Flappy Bird</h1>
+      
+      <div 
+        className="relative border-4 border-gray-500"
+        style={{
+          width: `${CANVAS_WIDTH}px`,
+          height: `${CANVAS_HEIGHT}px`,
+          backgroundColor: '#87CEEB',
+          overflow: 'hidden'
+        }}
+      >
+        {/* Pipes */}
+        {gameState.pipes.map((pipe, index) => (
+          <React.Fragment key={index}>
+            <div 
+              style={{
+                position: 'absolute',
+                left: `${pipe.x}px`,
+                top: '0',
+                width: `${PIPE_WIDTH}px`,
+                height: `${pipe.topHeight}px`,
+                backgroundColor: '#2ecc71'
+              }}
+            />
+            <div 
+              style={{
+                position: 'absolute',
+                left: `${pipe.x}px`,
+                bottom: '0',
+                width: `${PIPE_WIDTH}px`,
+                height: `${pipe.bottomHeight}px`,
+                backgroundColor: '#2ecc71'
+              }}
+            />
+          </React.Fragment>
+        ))}
         
-        # Bottom pipe
-        cv2.rectangle(canvas, 
-                      (int(pipe['x']), int(game.HEIGHT - pipe['bottom_height'])), 
-                      (int(pipe['x'] + game.PIPE_WIDTH), game.HEIGHT), 
-                      (0, 255, 0), 
-                      -1)
-    
-    # Draw bird
-    cv2.circle(canvas, 
-               (int(game.BIRD_RADIUS), int(game.bird_y)), 
-               game.BIRD_RADIUS, 
-               (255, 0, 0), 
-               -1)
-    
-    return canvas
-
-def main():
-    st.title("Flappy Bird Clone")
-    
-    # Initialize game state in session
-    if 'game' not in st.session_state:
-        st.session_state.game = FlappyBirdGame()
-    
-    # Game area
-    game_container = st.empty()
-    
-    # Control buttons
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        start_button = st.button("Start Game")
-    
-    with col2:
-        jump_button = st.button("Jump")
-    
-    # Game logic
-    if start_button:
-        st.session_state.game.reset()
-    
-    if jump_button and st.session_state.game.is_active:
-        st.session_state.game.jump()
-    
-    # Game loop
-    if st.session_state.game.is_active:
-        # Update game state
-        st.session_state.game.update()
+        {/* Bird */}
+        <div 
+          style={{
+            position: 'absolute',
+            left: '20px',
+            top: `${gameState.birdY}px`,
+            width: `${BIRD_SIZE}px`,
+            height: `${BIRD_SIZE}px`,
+            borderRadius: '50%',
+            backgroundColor: '#e74c3c'
+          }}
+        />
+      </div>
+      
+      <div className="flex space-x-4 mt-4">
+        {gameState.isGameOver && (
+          <button 
+            onClick={resetGame}
+            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            Restart Game
+          </button>
+        )}
         
-        # Draw game
-        game_container.image(draw_game(st.session_state.game), 
-                              caption=f"Score: {st.session_state.game.score}", 
-                              use_column_width=True)
+        {!gameState.isPlaying && !gameState.isGameOver && (
+          <button 
+            onClick={resetGame}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Start Game
+          </button>
+        )}
         
-        # Check for game over
-        if st.session_state.game.is_game_over:
-            st.error("Game Over!")
-            st.write(f"Final Score: {st.session_state.game.score}")
-    
-    # Refresh game state
-    time.sleep(0.1)
-    st.experimental_rerun()
+        {gameState.isPlaying && !gameState.isGameOver && (
+          <button 
+            onClick={jump}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Jump
+          </button>
+        )}
+      </div>
+      
+      <div className="mt-4 text-xl font-semibold">
+        Score: {gameState.score}
+        {gameState.isGameOver && (
+          <p className="text-red-500">Game Over!</p>
+        )}
+      </div>
+    </div>
+  );
+};
 
-if __name__ == "__main__":
-    main()
-
-# Generate requirements file
-def create_requirements_txt():
-    requirements = """
-streamlit
-numpy
-opencv-python-headless
-"""
-    with open('requirements.txt', 'w') as f:
-        f.write(requirements)
-
-create_requirements_txt()
+export default FlappyBirdGame;
