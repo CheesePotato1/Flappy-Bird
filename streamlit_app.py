@@ -249,3 +249,18 @@ if st.session_state.game_state['game_active']:
     update_game()
     time.sleep(0.03)
     st.experimental_rerun()
+
+DIFFICULTY_SETTINGS = {
+    'easy': {
+        'GRAVITY': 0.3,  # Lightest gravity
+        ...
+    },
+    'medium': {
+        'GRAVITY': 0.5,  # Medium gravity
+        ...
+    },
+    'hard': {
+        'GRAVITY': 0.7,  # Strongest gravity
+        ...
+    }
+}
