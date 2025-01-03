@@ -15,8 +15,8 @@ class FlappyBirdGame:
         self.bird_y = self.height // 2
         
         # Physics variables
-        self.vertical_speed = 0
-        self.gravity = -50  # Gravity set to -50
+        self.velocity_y = 0  # Vertical velocity
+        self.gravitational_force = 0.5  # Constant gravity value
         
         # Game state
         self.pipes = []
@@ -39,17 +39,27 @@ class FlappyBirdGame:
     
     def jump(self):
         # Give upward velocity when jumping
-        self.vertical_speed = 50  # Upward push
+        self.velocity_y = -8  # Upward push (negative to go up)
     
     def update(self):
-        # Apply gravity (add gravity to vertical speed)
-        self.vertical_speed += self.gravity
-        self.bird_y += self.vertical_speed
+        # Apply gravity to velocity
+        self.velocity_y += self.gravitational_force
+        
+        # Update bird position based on velocity
+        self.bird_y += self.velocity_y
+        
+        # Debug information
+        st.write(f"Position: {self.bird_y}, Velocity: {self.velocity_y}")
         
         # Check ground collision
         if self.bird_y >= self.height - 50:
             self.is_game_over = True
             return
+        
+        # Check ceiling collision
+        if self.bird_y <= 0:
+            self.bird_y = 0
+            self.velocity_y = 0
         
         # Move pipes
         for pipe in self.pipes:
@@ -110,7 +120,7 @@ def draw_game(game):
     return canvas
 
 def main():
-    st.title("Flappy Bird Gravity Game")
+    st.title("Flappy Bird Gravity Simulation")
     
     # Initialize game state
     if 'game' not in st.session_state:
