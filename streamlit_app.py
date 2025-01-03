@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
 import random
+import time
 
 class FlappyBirdGame:
     def __init__(self, width=400, height=600):
@@ -11,11 +12,11 @@ class FlappyBirdGame:
     def reset(self):
         # Bird properties
         self.bird_x = self.width // 4
-        self.bird_y = self.height // 2
-        self.bird_velocity = 0
-        self.gravity = 0.8  # Increased gravity
-        self.jump_strength = -12  # Adjusted jump to counter increased gravity
-        self.bird_size = 30  # Larger bird size
+        self.bird_y = self.height // 2  # Start in middle of screen
+        self.bird_velocity = 0  # Initial velocity is zero
+        self.gravity = 0.5  # Gravity constant
+        self.jump_strength = -10  # Upward velocity when jumping
+        self.bird_size = 30  # Bird size
         
         # Pipes
         self.pipes = []
@@ -24,30 +25,35 @@ class FlappyBirdGame:
         # Game state
         self.score = 0
         self.is_game_over = False
-        self.pipe_speed = 5  # Speed of pipes moving
+        self.last_update_time = time.time()
     
     def spawn_pipe(self):
-        # Randomly position pipe opening with more variable heights
-        gap_start = random.randint(100, self.height - 250)
-        gap_size = 150  # Fixed gap size
+        # Randomly position pipe opening
+        pipe_height = random.randint(100, self.height - 250)
+        gap_size = 200  # Size of gap between pipes
         self.pipes.append({
             'x': self.width,
-            'top_height': gap_start,
-            'bottom_height': self.height - (gap_start + gap_size)
+            'top_height': pipe_height,
+            'bottom_height': self.height - (pipe_height + gap_size)
         })
     
     def jump(self):
         if not self.is_game_over:
-            # Apply jump velocity
+            # Apply upward velocity
             self.bird_velocity = self.jump_strength
     
     def update(self):
-        # Apply gravity (increases velocity downwards)
-        self.bird_velocity += self.gravity
-        self.bird_y += self.bird_velocity
+        # Calculate time since last update to make gravity consistent
+        current_time = time.time()
+        time_delta = current_time - self.last_update_time
+        self.last_update_time = current_time
+
+        # Apply gravity (increases downward velocity)
+        self.bird_velocity += self.gravity * 10  # Multiplied to make gravity more noticeable
+        self.bird_y += self.bird_velocity * time_delta * 50  # Scaled for visibility
         
-        # Limit maximum falling speed
-        self.bird_velocity = min(self.bird_velocity, 15)
+        # Prevent bird from moving too fast
+        self.bird_velocity = min(self.bird_velocity, 20)
         
         # Check ground and ceiling collision
         if self.bird_y >= self.height - 50 or self.bird_y <= 0:
@@ -56,20 +62,28 @@ class FlappyBirdGame:
         
         # Move pipes
         for pipe in self.pipes:
-            pipe['x'] -= self.pipe_speed
+            pipe['x'] -= 5  # Move pipes to the left
             
-            # Collision detection with more precise hitbox
-            if (self.bird_x + self.bird_size/2 > pipe['x'] and 
-                self.bird_x - self.bird_size/2 < pipe['x'] + 50):
-                # Check top pipe collision
-                if self.bird_y - self.bird_size/2 < pipe['top_height']:
-                    self.is_game_over = True
-                    return
-                
-                # Check bottom pipe collision
-                if self.bird_y + self.bird_size/2 > self.height - pipe['bottom_height']:
-                    self.is_game_over = True
-                    return
+            # Collision detection
+            bird_left = self.bird_x - self.bird_size/2
+            bird_right = self.bird_x + self.bird_size/2
+            bird_top = self.bird_y - self.bird_size/2
+            bird_bottom = self.bird_y + self.bird_size/2
+            
+            pipe_left = pipe['x']
+            pipe_right = pipe['x'] + 50
+            
+            # Check collision with top pipe
+            if (bird_right > pipe_left and bird_left < pipe_right and 
+                bird_top < pipe['top_height']):
+                self.is_game_over = True
+                return
+            
+            # Check collision with bottom pipe
+            if (bird_right > pipe_left and bird_left < pipe_right and 
+                bird_bottom > self.height - pipe['bottom_height']):
+                self.is_game_over = True
+                return
         
         # Remove off-screen pipes
         self.pipes = [p for p in self.pipes if p['x'] > -50]
