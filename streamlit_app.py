@@ -2,32 +2,47 @@ import streamlit as st
 import numpy as np
 import time
 from PIL import Image, ImageDraw
+from streamlit.components.v1 import html
+
+# Add JavaScript to handle spacebar
+def add_spacebar_listener():
+    html("""
+        <script>
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                const jumpButton = document.querySelector('button[kind="secondary"]');
+                if (jumpButton) jumpButton.click();
+            }
+        });
+        </script>
+    """)
 
 # Game difficulty settings
 DIFFICULTY_SETTINGS = {
     'easy': {
-        'GRAVITY': 0.3,
-        'JUMP_VELOCITY': -7,
-        'PIPE_SPEED': 2,
-        'PIPE_GAP': 180,
-        'PIPE_SPAWN_TIME': 2.5,
-        'COLOR': 'green'
-    },
-    'medium': {
         'GRAVITY': 0.5,
         'JUMP_VELOCITY': -8,
         'PIPE_SPEED': 3,
-        'PIPE_GAP': 150,
+        'PIPE_GAP': 140,  # Original Flappy Bird gap size
         'PIPE_SPAWN_TIME': 2,
-        'COLOR': 'orange'
+        'COLOR': 'green'
     },
-    'hard': {
-        'GRAVITY': 0.7,
+    'medium': {
+        'GRAVITY': 0.6,
         'JUMP_VELOCITY': -9,
         'PIPE_SPEED': 4,
         'PIPE_GAP': 120,
+        'PIPE_SPAWN_TIME': 1.8,
+        'COLOR': 'green'
+    },
+    'hard': {
+        'GRAVITY': 0.7,
+        'JUMP_VELOCITY': -10,
+        'PIPE_SPEED': 5,
+        'PIPE_GAP': 100,
         'PIPE_SPAWN_TIME': 1.5,
-        'COLOR': 'red'
+        'COLOR': 'green'
     }
 }
 
@@ -52,62 +67,63 @@ def create_pipe_image(width, height, is_top=True):
     pipe = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(pipe)
     
-    # Main pipe body - lighter green
-    draw.rectangle([0, 0, width-4, height], fill=(100, 200, 50))
-    # Right shadow - darker green
-    draw.rectangle([width-4, 0, width, height], fill=(80, 180, 40))
+    # Original Flappy Bird pipe colors
+    pipe_color = (96, 184, 31)      # Light green
+    pipe_shadow = (82, 158, 26)     # Darker green
+    pipe_highlight = (116, 208, 37)  # Lighter green
+    
+    # Main pipe body
+    draw.rectangle([0, 0, width-4, height], fill=pipe_color)
+    draw.rectangle([width-4, 0, width, height], fill=pipe_shadow)
     
     # Pipe cap
-    cap_height = 30
+    cap_height = 26
     if is_top:
         cap_y = height - cap_height
     else:
         cap_y = 0
         
-    # Cap main body - lighter green
-    draw.rectangle([-5, cap_y, width+5, cap_y + cap_height], fill=(100, 200, 50))
-    # Cap shadow - darker green
-    draw.rectangle([width+1, cap_y, width+5, cap_y + cap_height], fill=(80, 180, 40))
-    # Cap highlight
-    draw.rectangle([-5, cap_y, width+5, cap_y + 4], fill=(120, 220, 60))
-    
+    draw.rectangle([-4, cap_y, width+4, cap_y + cap_height], fill=pipe_color)
+    draw.rectangle([width, cap_y, width+4, cap_y + cap_height], fill=pipe_shadow)
+    draw.rectangle([-4, cap_y, width+4, cap_y + 3], fill=pipe_highlight)
+
     return pipe
 
 def create_bird_image(size):
     bird = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(bird)
     
-    # Body - yellow
-    draw.ellipse([2, 2, size-2, size-2], fill=(255, 215, 0))
-    # Wing - darker yellow
-    draw.ellipse([size//4, size//2, size//2, size-4], fill=(230, 180, 0))
-    # Eye - white
-    draw.ellipse([size//1.5, size//4, size-4, size//2], fill='white')
-    # Pupil - black
-    draw.ellipse([size//1.3, size//3.5, size-6, size//2.2], fill='black')
-    # Beak - orange
-    draw.polygon([(size-4, size//2), (size, size//1.8), (size-4, size//1.5)], fill=(255, 140, 0))
+    # Original Flappy Bird colors
+    body_color = (255, 203, 48)  # Yellow-orange
+    wing_color = (212, 156, 35)  # Darker orange
+    face_color = (241, 141, 41)  # Orange for beak
+    
+    # Main body
+    draw.rectangle([4, 4, size-4, size-4], fill=body_color)
+    # Wing
+    draw.rectangle([6, size//2, size//2, size-6], fill=wing_color)
+    # Eye (white)
+    draw.ellipse([size//1.5, size//4, size-6, size//2], fill='white')
+    # Eye (black)
+    draw.ellipse([size//1.4, size//3.5, size-8, size//2.2], fill='black')
+    # Beak
+    draw.polygon([(size-6, size//2), (size-2, size//1.8), (size-6, size//1.5)], fill=face_color)
     
     return bird
 
 def create_background():
-    # Create sky
-    bg = Image.new('RGB', (GAME_WIDTH, GAME_HEIGHT), (135, 206, 235))  # Sky blue
+    bg = Image.new('RGB', (GAME_WIDTH, GAME_HEIGHT), (78, 192, 202))  # Light blue
     draw = ImageDraw.Draw(bg)
     
-    # Add clouds
+    # Add clouds (simple white shapes)
     cloud_color = (255, 255, 255)
-    for i in range(0, GAME_WIDTH, 100):
-        draw.ellipse([i, GAME_HEIGHT-150, i+60, GAME_HEIGHT-120], fill=cloud_color)
+    for i in range(0, GAME_WIDTH, 120):
+        y_pos = np.random.randint(50, 150)
+        draw.ellipse([i, y_pos, i+60, y_pos+30], fill=cloud_color)
     
-    # Add city skyline
-    city_color = (100, 200, 100)  # Light green
-    for i in range(0, GAME_WIDTH, 50):
-        height = np.random.randint(50, 100)
-        draw.rectangle([i, GAME_HEIGHT-height, i+30, GAME_HEIGHT], fill=city_color)
-    
-    # Add ground
-    draw.rectangle([0, GAME_HEIGHT-50, GAME_WIDTH, GAME_HEIGHT], fill=(150, 220, 50))  # Green
+    # Add ground (original green color)
+    ground_color = (221, 216, 148)  # Beige ground
+    draw.rectangle([0, GAME_HEIGHT-70, GAME_WIDTH, GAME_HEIGHT], fill=ground_color)
     
     return bg
 
@@ -140,7 +156,8 @@ def create_game_frame():
     
     # Add score
     draw = ImageDraw.Draw(frame)
-    draw.text((10, 10), f"Score: {st.session_state.game_state['score']}", fill='white')
+    draw.text((GAME_WIDTH//2 - 20, 50), str(st.session_state.game_state['score']), 
+              fill='white', size=40)
     
     return frame
 
@@ -187,7 +204,7 @@ def update_game():
 
     # Check collisions
     if st.session_state.game_state['bird_y'] < 0 or \
-       st.session_state.game_state['bird_y'] > GAME_HEIGHT:
+       st.session_state.game_state['bird_y'] > GAME_HEIGHT-70:  # Ground collision
         game_over()
         return
 
@@ -208,6 +225,9 @@ def game_over():
 # Main game UI
 st.title('Flappy Bird')
 
+# Add spacebar listener
+add_spacebar_listener()
+
 # Difficulty selection
 if not st.session_state.game_state['game_active']:
     difficulty = st.selectbox(
@@ -222,11 +242,11 @@ col1, col2 = st.columns([2,1])
 
 with col1:
     if not st.session_state.game_state['game_active']:
-        if st.button('Start Game'):
+        if st.button('Start Game (Press Space to Jump)'):
             reset_game()
     
     if st.session_state.game_state['game_active']:
-        if st.button('Jump'):
+        if st.button('Jump', key='jump_button'):
             difficulty = st.session_state.game_state['difficulty']
             st.session_state.game_state['bird_velocity'] = DIFFICULTY_SETTINGS[difficulty]['JUMP_VELOCITY']
 
@@ -249,18 +269,3 @@ if st.session_state.game_state['game_active']:
     update_game()
     time.sleep(0.03)
     st.experimental_rerun()
-
-DIFFICULTY_SETTINGS = {
-    'easy': {
-        'GRAVITY': 0.3,  # Lightest gravity
-        ...
-    },
-    'medium': {
-        'GRAVITY': 0.5,  # Medium gravity
-        ...
-    },
-    'hard': {
-        'GRAVITY': 0.7,  # Strongest gravity
-        ...
-    }
-}
