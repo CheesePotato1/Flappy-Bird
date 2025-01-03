@@ -93,11 +93,7 @@ def main():
     canvas = st.empty()
 
     # Game loop
-    current_time = time.time()
-    dt = current_time - st.session_state.last_update
-    st.session_state.last_update = current_time
-
-    if not st.session_state.game_over and st.session_state.game_started:
+    while not st.session_state.game_over:
         # Update bird
         st.session_state.bird.update()
 
@@ -124,41 +120,39 @@ def main():
         if st.session_state.bird.y < 0 or st.session_state.bird.y > 600:
             st.session_state.game_over = True
 
-    # Render game state
-    img = Image.new("RGB", (800, 600), color=(135, 206, 235))  # Sky blue background
-    draw = ImageDraw.Draw(img)
+        # Render game state
+        img = Image.new("RGB", (800, 600), color=(135, 206, 235))  # Sky blue background
+        draw = ImageDraw.Draw(img)
 
-    # Draw pipes
-    for pipe in st.session_state.pipes:
-        draw.rectangle([pipe.x, 0, pipe.x + 50, pipe.gap_y], fill=(34, 139, 34))  # Top pipe
-        draw.rectangle(
-            [pipe.x, pipe.gap_y + pipe.gap_size, pipe.x + 50, 600],
-            fill=(34, 139, 34),
-        )  # Bottom pipe
+        # Draw pipes
+        for pipe in st.session_state.pipes:
+            draw.rectangle([pipe.x, 0, pipe.x + 50, pipe.gap_y], fill=(34, 139, 34))  # Top pipe
+            draw.rectangle(
+                [pipe.x, pipe.gap_y + pipe.gap_size, pipe.x + 50, 600],
+                fill=(34, 139, 34),
+            )  # Bottom pipe
 
-    # Draw bird
-    draw.ellipse(
-        [
-            st.session_state.bird.x,
-            st.session_state.bird.y,
-            st.session_state.bird.x + 30,
-            st.session_state.bird.y + 30,
-        ],
-        fill=(255, 255, 0),
-    )  # Bird as a yellow circle
+        # Draw bird
+        draw.ellipse(
+            [
+                st.session_state.bird.x,
+                st.session_state.bird.y,
+                st.session_state.bird.x + 30,
+                st.session_state.bird.y + 30,
+            ],
+            fill=(255, 255, 0),
+        )  # Bird as a yellow circle
 
-    # Display game
-    canvas.image(img)
+        # Display game
+        canvas.image(img)
 
-    # Display score
-    st.write(f"Score: {st.session_state.score}")
+        # Display score
+        st.write(f"Score: {st.session_state.score}")
 
-    if st.session_state.game_over:
-        st.write("Game Over! Press Reset to play again.")
+        time.sleep(0.05)  # Control game speed (20 FPS)
 
-    # Rerun the app
-    time.sleep(0.05)
-    st.experimental_rerun()
+    # Game over message
+    st.write("Game Over! Press Reset to play again.")
 
 if __name__ == "__main__":
     main()
