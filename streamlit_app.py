@@ -257,7 +257,7 @@ with col2:
 # Game canvas
 if st.session_state.game_state['game_active'] or st.session_state.game_state['game_over']:
     game_frame = create_game_frame()
-    st.image(game_frame, use_column_width=True)
+    st.image(game_frame, use_container_width=True)  # Updated this line
 
 if st.session_state.game_state['game_over']:
     st.write(f"Game Over! Final Score: {st.session_state.game_state['score']}")
