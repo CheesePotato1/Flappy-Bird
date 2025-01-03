@@ -1,170 +1,141 @@
 import streamlit as st
+import pygame
 import numpy as np
-import random
+import time
+from PIL import Image
 
-class FlappyBirdGame:
-    def __init__(self, width=400, height=600):
-        self.width = width
-        self.height = height
-        self.bird_size = 30
-        self.reset()
-    
-    def reset(self):
-        # Bird starting position (middle of screen)
-        self.bird_x = self.width // 4
-        self.bird_y = self.height // 2
+class Bird:
+    def __init__(self):
+        self.y = 250
+        self.x = 50
+        self.vel = 0
+        self.gravity = 0.3
+        self.jump_strength = -7
         
-        # Physics variables
-        self.velocity = 0
-        self.gravity = 1  # Gravity constant
-        
-        # Game state
-        self.pipes = []
-        self.score = 0
-        self.is_game_over = False
-        
-        # Spawn initial pipe
-        self.spawn_pipe()
-    
-    def spawn_pipe(self):
-        # Create a pipe with a random height
-        gap_height = 200  # Size of the gap
-        pipe_height = random.randint(100, self.height - gap_height - 100)
-        
-        self.pipes.append({
-            'x': self.width,
-            'top_height': pipe_height,
-            'bottom_height': self.height - (pipe_height + gap_height)
-        })
-    
     def jump(self):
-        # Jump gives upward velocity (negative)
-        self.velocity = -10
-    
+        self.vel = self.jump_strength
+        
     def update(self):
-        # Apply gravity (increases downward velocity)
-        self.velocity += self.gravity
-        
-        # Update bird position
-        self.bird_y += self.velocity
-        
-        # Prevent going below ground
-        if self.bird_y > self.height - 50:
-            self.bird_y = self.height - 50
-            self.is_game_over = True
-        
-        # Prevent going above ceiling
-        if self.bird_y < 0:
-            self.bird_y = 0
-        
-        # Move pipes
-        for pipe in self.pipes:
-            pipe['x'] -= 5  # Move pipes to the left
-            
-            # Collision detection
-            if (self.bird_x + self.bird_size/2 > pipe['x'] and 
-                self.bird_x - self.bird_size/2 < pipe['x'] + 50):
-                # Check top pipe collision
-                if self.bird_y - self.bird_size/2 < pipe['top_height']:
-                    self.is_game_over = True
-                    return
-                
-                # Check bottom pipe collision
-                if self.bird_y + self.bird_size/2 > self.height - pipe['bottom_height']:
-                    self.is_game_over = True
-                    return
-        
-        # Remove old pipes
-        self.pipes = [p for p in self.pipes if p['x'] > -50]
-        
-        # Spawn new pipes
-        if not self.pipes or self.pipes[-1]['x'] < self.width - 200:
-            self.spawn_pipe()
-        
-        # Update score
-        for pipe in self.pipes:
-            if pipe['x'] + 50 < self.bird_x and not pipe.get('scored', False):
-                self.score += 1
-                pipe['scored'] = True
+        self.vel += self.gravity
+        self.y += self.vel
 
-def draw_game(game):
-    # Create canvas
-    canvas = np.full((game.height, game.width, 3), 135, dtype=np.uint8)
-    
-    # Draw ground
-    canvas[game.height-50:, :] = [34, 139, 34]
-    
-    # Draw pipes
-    for pipe in game.pipes:
-        # Top pipe
-        canvas[:int(pipe['top_height']), pipe['x']:pipe['x']+50] = [0, 255, 0]
+class Pipe:
+    def __init__(self, x):
+        self.x = x
+        self.gap_y = np.random.randint(100, 400)
+        self.gap_size = 150
+        self.speed = 3
         
-        # Bottom pipe
-        canvas[game.height-int(pipe['bottom_height']):game.height, 
-               pipe['x']:pipe['x']+50] = [0, 255, 0]
-    
-    # Draw bird
-    bird_size = game.bird_size
-    x1 = max(0, int(game.bird_x - bird_size/2))
-    x2 = min(game.width, int(game.bird_x + bird_size/2))
-    y1 = max(0, int(game.bird_y - bird_size/2))
-    y2 = min(game.height, int(game.bird_y + bird_size/2))
-    
-    # Red bird
-    canvas[y1:y2, x1:x2] = [255, 0, 0]
-    
-    return canvas
+    def update(self):
+        self.x -= self.speed
+        
+    def collides_with(self, bird):
+        bird_rect = pygame.Rect(bird.x, bird.y, 30, 30)
+        top_pipe = pygame.Rect(self.x, 0, 50, self.gap_y)
+        bottom_pipe = pygame.Rect(self.x, self.gap_y + self.gap_size, 50, 800)
+        return bird_rect.colliderect(top_pipe) or bird_rect.colliderect(bottom_pipe)
+
+def init_game_state():
+    if 'bird' not in st.session_state:
+        st.session_state.bird = Bird()
+    if 'pipes' not in st.session_state:
+        st.session_state.pipes = [Pipe(600)]
+    if 'score' not in st.session_state:
+        st.session_state.score = 0
+    if 'game_over' not in st.session_state:
+        st.session_state.game_over = False
+    if 'game_started' not in st.session_state:
+        st.session_state.game_started = False
+    if 'last_update' not in st.session_state:
+        st.session_state.last_update = time.time()
+
+def reset_game():
+    st.session_state.bird = Bird()
+    st.session_state.pipes = [Pipe(600)]
+    st.session_state.score = 0
+    st.session_state.game_over = False
+    st.session_state.game_started = False
+    st.session_state.last_update = time.time()
 
 def main():
-    st.title("Flappy Bird with Gravity")
+    st.title("Flappy Bird")
     
-    # Initialize game state
-    if 'game' not in st.session_state:
-        st.session_state.game = FlappyBirdGame()
+    init_game_state()
     
-    # Game display
-    game_container = st.empty()
-    
-    # Debug info
-    st.write(f"Bird Y: {st.session_state.game.bird_y:.2f}")
-    st.write(f"Velocity: {st.session_state.game.velocity:.2f}")
-    
-    # Controls
+    # Game controls
     col1, col2 = st.columns(2)
-    
     with col1:
-        start_button = st.button("Start/Reset Game")
-    
+        if st.button("Jump", key="jump"):
+            if not st.session_state.game_started:
+                st.session_state.game_started = True
+            st.session_state.bird.jump()
     with col2:
-        jump_button = st.button("Jump")
+        if st.button("Reset Game", key="reset"):
+            reset_game()
+            
+    # Game canvas
+    canvas = st.empty()
     
-    # Game logic
-    if start_button:
-        st.session_state.game.reset()
+    # Game loop
+    current_time = time.time()
+    dt = current_time - st.session_state.last_update
+    st.session_state.last_update = current_time
     
-    if jump_button:
-        st.session_state.game.jump()
+    if not st.session_state.game_over and st.session_state.game_started:
+        # Update bird
+        st.session_state.bird.update()
+        
+        # Update pipes
+        for pipe in st.session_state.pipes:
+            pipe.update()
+            
+            # Check collisions
+            if pipe.collides_with(st.session_state.bird):
+                st.session_state.game_over = True
+                
+        # Remove pipes that are off screen and add new ones
+        st.session_state.pipes = [p for p in st.session_state.pipes if p.x > -50]
+        if len(st.session_state.pipes) > 0 and st.session_state.pipes[-1].x < 200:
+            st.session_state.pipes.append(Pipe(600))
+            
+        # Update score
+        passed_pipe = next((p for p in st.session_state.pipes if p.x < st.session_state.bird.x and p.x > st.session_state.bird.x - 5), None)
+        if passed_pipe:
+            st.session_state.score += 1
+            
+        # Check if bird is out of bounds
+        if st.session_state.bird.y < 0 or st.session_state.bird.y > 600:
+            st.session_state.game_over = True
     
-    # Update game if not game over
-    if not st.session_state.game.is_game_over:
-        st.session_state.game.update()
+    # Render game state
+    screen = pygame.Surface((800, 600))
+    screen.fill((135, 206, 235))  # Sky blue background
     
-    # Draw game
-    game_image = draw_game(st.session_state.game)
-    game_container.image(game_image, caption=f"Score: {st.session_state.game.score}")
+    # Draw pipes
+    for pipe in st.session_state.pipes:
+        pygame.draw.rect(screen, (34, 139, 34), (pipe.x, 0, 50, pipe.gap_y))  # Top pipe
+        pygame.draw.rect(screen, (34, 139, 34), 
+                        (pipe.x, pipe.gap_y + pipe.gap_size, 50, 600 - (pipe.gap_y + pipe.gap_size)))  # Bottom pipe
     
-    # Game over check
-    if st.session_state.game.is_game_over:
-        st.error("Game Over!")
-        st.write(f"Final Score: {st.session_state.game.score}")
+    # Draw bird
+    pygame.draw.circle(screen, (255, 255, 0), (st.session_state.bird.x, int(st.session_state.bird.y)), 15)
+    
+    # Convert Pygame surface to PIL Image
+    string_image = pygame.image.tostring(screen, 'RGB')
+    pil_image = Image.frombytes('RGB', (800, 600), string_image)
+    
+    # Display game
+    canvas.image(pil_image)
+    
+    # Display score
+    st.write(f"Score: {st.session_state.score}")
+    
+    if st.session_state.game_over:
+        st.write("Game Over! Press Reset to play again.")
+    
+    # Rerun the app
+    time.sleep(0.05)
+    st.experimental_rerun()
 
-# Create requirements file
-def create_requirements_file():
-    with open('requirements.txt', 'w') as f:
-        f.write("streamlit\nnumpy")
-
-create_requirements_file()
-
-# Run main function
 if __name__ == "__main__":
     main()
