@@ -1,62 +1,53 @@
 import streamlit as st
 import numpy as np
 import random
-import time
 
 class FlappyBirdGame:
     def __init__(self, width=400, height=600):
         self.width = width
         self.height = height
+        self.bird_size = 30
         self.reset()
     
     def reset(self):
-        # Bird properties
+        # Bird starting position
         self.bird_x = self.width // 4
-        self.bird_y = self.height // 2  # Start in middle of screen
-        self.bird_velocity = 0  # Initial velocity is zero
-        self.gravity = 0.5  # Gravity constant
-        self.jump_strength = -10  # Upward velocity when jumping
-        self.bird_size = 30  # Bird size
+        self.bird_y = self.height // 2
         
-        # Pipes
-        self.pipes = []
-        self.spawn_pipe()
+        # Physics variables
+        self.vertical_speed = 0
+        self.gravity = 2  # Increased gravity
         
         # Game state
+        self.pipes = []
         self.score = 0
         self.is_game_over = False
-        self.last_update_time = time.time()
+        
+        # Spawn initial pipe
+        self.spawn_pipe()
     
     def spawn_pipe(self):
-        # Randomly position pipe opening
-        pipe_height = random.randint(100, self.height - 250)
-        gap_size = 200  # Size of gap between pipes
+        # Create a pipe with a random height
+        gap_height = 200  # Size of the gap
+        pipe_height = random.randint(100, self.height - gap_height - 100)
+        
         self.pipes.append({
             'x': self.width,
             'top_height': pipe_height,
-            'bottom_height': self.height - (pipe_height + gap_size)
+            'bottom_height': self.height - (pipe_height + gap_height)
         })
     
     def jump(self):
-        if not self.is_game_over:
-            # Apply upward velocity
-            self.bird_velocity = self.jump_strength
+        # Give upward velocity when jumping
+        self.vertical_speed = -10  # Strong upward push
     
     def update(self):
-        # Calculate time since last update to make gravity consistent
-        current_time = time.time()
-        time_delta = current_time - self.last_update_time
-        self.last_update_time = current_time
-
-        # Apply gravity (increases downward velocity)
-        self.bird_velocity += self.gravity * 10  # Multiplied to make gravity more noticeable
-        self.bird_y += self.bird_velocity * time_delta * 50  # Scaled for visibility
+        # Apply gravity (increase downward speed)
+        self.vertical_speed += self.gravity
+        self.bird_y += self.vertical_speed
         
-        # Prevent bird from moving too fast
-        self.bird_velocity = min(self.bird_velocity, 20)
-        
-        # Check ground and ceiling collision
-        if self.bird_y >= self.height - 50 or self.bird_y <= 0:
+        # Check ground collision
+        if self.bird_y >= self.height - 50:
             self.is_game_over = True
             return
         
@@ -65,27 +56,19 @@ class FlappyBirdGame:
             pipe['x'] -= 5  # Move pipes to the left
             
             # Collision detection
-            bird_left = self.bird_x - self.bird_size/2
-            bird_right = self.bird_x + self.bird_size/2
-            bird_top = self.bird_y - self.bird_size/2
-            bird_bottom = self.bird_y + self.bird_size/2
-            
-            pipe_left = pipe['x']
-            pipe_right = pipe['x'] + 50
-            
-            # Check collision with top pipe
-            if (bird_right > pipe_left and bird_left < pipe_right and 
-                bird_top < pipe['top_height']):
-                self.is_game_over = True
-                return
-            
-            # Check collision with bottom pipe
-            if (bird_right > pipe_left and bird_left < pipe_right and 
-                bird_bottom > self.height - pipe['bottom_height']):
-                self.is_game_over = True
-                return
+            if (self.bird_x + self.bird_size/2 > pipe['x'] and 
+                self.bird_x - self.bird_size/2 < pipe['x'] + 50):
+                # Check top pipe collision
+                if self.bird_y - self.bird_size/2 < pipe['top_height']:
+                    self.is_game_over = True
+                    return
+                
+                # Check bottom pipe collision
+                if self.bird_y + self.bird_size/2 > self.height - pipe['bottom_height']:
+                    self.is_game_over = True
+                    return
         
-        # Remove off-screen pipes
+        # Remove old pipes
         self.pipes = [p for p in self.pipes if p['x'] > -50]
         
         # Spawn new pipes
@@ -99,18 +82,18 @@ class FlappyBirdGame:
                 pipe['scored'] = True
 
 def draw_game(game):
-    # Create a blank canvas with sky blue background
+    # Create canvas
     canvas = np.full((game.height, game.width, 3), 135, dtype=np.uint8)
     
-    # Draw ground (darker green)
+    # Draw ground
     canvas[game.height-50:, :] = [34, 139, 34]
     
     # Draw pipes
     for pipe in game.pipes:
-        # Top pipe (green)
+        # Top pipe
         canvas[:int(pipe['top_height']), pipe['x']:pipe['x']+50] = [0, 255, 0]
         
-        # Bottom pipe (green)
+        # Bottom pipe
         canvas[game.height-int(pipe['bottom_height']):game.height, 
                pipe['x']:pipe['x']+50] = [0, 255, 0]
     
@@ -127,16 +110,16 @@ def draw_game(game):
     return canvas
 
 def main():
-    st.title("Flappy Bird with Gravity")
+    st.title("Flappy Bird Gravity Test")
     
     # Initialize game state
     if 'game' not in st.session_state:
         st.session_state.game = FlappyBirdGame()
     
-    # Game display container
+    # Game display
     game_container = st.empty()
     
-    # Control columns
+    # Controls
     col1, col2 = st.columns(2)
     
     with col1:
@@ -152,7 +135,7 @@ def main():
     if jump_button:
         st.session_state.game.jump()
     
-    # Only update and draw if game is active
+    # Update game if not game over
     if not st.session_state.game.is_game_over:
         st.session_state.game.update()
     
@@ -165,16 +148,13 @@ def main():
         st.error("Game Over!")
         st.write(f"Final Score: {st.session_state.game.score}")
 
+# Create requirements file
 def create_requirements_file():
     with open('requirements.txt', 'w') as f:
-        f.write("""
-streamlit
-numpy
-""")
+        f.write("streamlit\nnumpy")
 
-# Create requirements file
 create_requirements_file()
 
-# Run the main function
+# Run main function
 if __name__ == "__main__":
     main()
