@@ -1,189 +1,170 @@
 import streamlit as st
+import numpy as np
 import random
-import json
-from dataclasses import dataclass
-from typing import List, Dict
-import time
 
-@dataclass
-class Character:
-    name: str
-    hp: int
-    max_hp: int
-    attack: int
-    defense: int
-    gold: int
-    exp: int
-    level: int
-    inventory: List[str]
-
-@dataclass
-class Enemy:
-    name: str
-    hp: int
-    attack: int
-    defense: int
-    gold: int
-    exp: int
-
-class Game:
-    def __init__(self):
-        if 'character' not in st.session_state:
-            st.session_state.character = Character(
-                name="Hero",
-                hp=100,
-                max_hp=100,
-                attack=10,
-                defense=5,
-                gold=0,
-                exp=0,
-                level=1,
-                inventory=["Potion"]
-            )
+class FlappyBirdGame:
+    def __init__(self, width=400, height=600):
+        self.width = width
+        self.height = height
+        self.bird_size = 30
+        self.reset()
+    
+    def reset(self):
+        # Bird starting position (middle of screen)
+        self.bird_x = self.width // 4
+        self.bird_y = self.height // 2
         
-        self.enemies = {
-            'Slime': Enemy("Slime", 30, 5, 2, 5, 10),
-            'Goblin': Enemy("Goblin", 45, 8, 3, 10, 15),
-            'Wolf': Enemy("Wolf", 60, 12, 4, 15, 20),
-            'Dragon': Enemy("Dragon", 200, 25, 15, 100, 200)
-        }
+        # Physics variables
+        self.velocity = 0
+        self.gravity = 1  # Gravity constant
         
-        self.items = {
-            'Potion': {'type': 'heal', 'value': 30, 'cost': 10},
-            'Sword': {'type': 'attack', 'value': 5, 'cost': 50},
-            'Shield': {'type': 'defense', 'value': 3, 'cost': 40}
-        }
-
-    def level_up_check(self):
-        exp_needed = st.session_state.character.level * 100
-        if st.session_state.character.exp >= exp_needed:
-            st.session_state.character.level += 1
-            st.session_state.character.max_hp += 20
-            st.session_state.character.hp = st.session_state.character.max_hp
-            st.session_state.character.attack += 5
-            st.session_state.character.defense += 3
-            st.session_state.character.exp -= exp_needed
-            return True
-        return False
-
-    def battle(self, enemy_name: str) -> str:
-        enemy = self.enemies[enemy_name]
-        enemy_hp = enemy.hp
+        # Game state
+        self.pipes = []
+        self.score = 0
+        self.is_game_over = False
         
-        while enemy_hp > 0 and st.session_state.character.hp > 0:
-            # Player attack
-            damage = max(0, st.session_state.character.attack - enemy.defense)
-            enemy_hp -= damage
+        # Spawn initial pipe
+        self.spawn_pipe()
+    
+    def spawn_pipe(self):
+        # Create a pipe with a random height
+        gap_height = 200  # Size of the gap
+        pipe_height = random.randint(100, self.height - gap_height - 100)
+        
+        self.pipes.append({
+            'x': self.width,
+            'top_height': pipe_height,
+            'bottom_height': self.height - (pipe_height + gap_height)
+        })
+    
+    def jump(self):
+        # Jump gives upward velocity (negative)
+        self.velocity = -10
+    
+    def update(self):
+        # Apply gravity (increases downward velocity)
+        self.velocity += self.gravity
+        
+        # Update bird position
+        self.bird_y += self.velocity
+        
+        # Prevent going below ground
+        if self.bird_y > self.height - 50:
+            self.bird_y = self.height - 50
+            self.is_game_over = True
+        
+        # Prevent going above ceiling
+        if self.bird_y < 0:
+            self.bird_y = 0
+        
+        # Move pipes
+        for pipe in self.pipes:
+            pipe['x'] -= 5  # Move pipes to the left
             
-            if enemy_hp <= 0:
-                st.session_state.character.gold += enemy.gold
-                st.session_state.character.exp += enemy.exp
-                leveled_up = self.level_up_check()
+            # Collision detection
+            if (self.bird_x + self.bird_size/2 > pipe['x'] and 
+                self.bird_x - self.bird_size/2 < pipe['x'] + 50):
+                # Check top pipe collision
+                if self.bird_y - self.bird_size/2 < pipe['top_height']:
+                    self.is_game_over = True
+                    return
                 
-                result = f"Won! Gained {enemy.gold} gold and {enemy.exp} exp."
-                if leveled_up:
-                    result += f"\nLevel Up! Now level {st.session_state.character.level}"
-                return result
-            
-            # Enemy attack
-            damage = max(0, enemy.attack - st.session_state.character.defense)
-            st.session_state.character.hp -= damage
-            
-            if st.session_state.character.hp <= 0:
-                st.session_state.character.hp = 1
-                st.session_state.character.gold = max(0, st.session_state.character.gold - 10)
-                return "Defeated! Lost 10 gold..."
-
-    def use_item(self, item: str) -> str:
-        if item not in st.session_state.character.inventory:
-            return "Don't have this item!"
+                # Check bottom pipe collision
+                if self.bird_y + self.bird_size/2 > self.height - pipe['bottom_height']:
+                    self.is_game_over = True
+                    return
         
-        st.session_state.character.inventory.remove(item)
+        # Remove old pipes
+        self.pipes = [p for p in self.pipes if p['x'] > -50]
         
-        if item == 'Potion':
-            heal = min(
-                self.items[item]['value'],
-                st.session_state.character.max_hp - st.session_state.character.hp
-            )
-            st.session_state.character.hp += heal
-            return f"Healed {heal} HP!"
-            
-        elif item == 'Sword':
-            st.session_state.character.attack += self.items[item]['value']
-            return f"Attack increased by {self.items[item]['value']}!"
-            
-        elif item == 'Shield':
-            st.session_state.character.defense += self.items[item]['value']
-            return f"Defense increased by {self.items[item]['value']}!"
+        # Spawn new pipes
+        if not self.pipes or self.pipes[-1]['x'] < self.width - 200:
+            self.spawn_pipe()
+        
+        # Update score
+        for pipe in self.pipes:
+            if pipe['x'] + 50 < self.bird_x and not pipe.get('scored', False):
+                self.score += 1
+                pipe['scored'] = True
 
-    def buy_item(self, item: str) -> str:
-        if item not in self.items:
-            return "Item doesn't exist!"
-            
-        if st.session_state.character.gold < self.items[item]['cost']:
-            return "Not enough gold!"
-            
-        st.session_state.character.gold -= self.items[item]['cost']
-        st.session_state.character.inventory.append(item)
-        return f"Bought {item}!"
+def draw_game(game):
+    # Create canvas
+    canvas = np.full((game.height, game.width, 3), 135, dtype=np.uint8)
+    
+    # Draw ground
+    canvas[game.height-50:, :] = [34, 139, 34]
+    
+    # Draw pipes
+    for pipe in game.pipes:
+        # Top pipe
+        canvas[:int(pipe['top_height']), pipe['x']:pipe['x']+50] = [0, 255, 0]
+        
+        # Bottom pipe
+        canvas[game.height-int(pipe['bottom_height']):game.height, 
+               pipe['x']:pipe['x']+50] = [0, 255, 0]
+    
+    # Draw bird
+    bird_size = game.bird_size
+    x1 = max(0, int(game.bird_x - bird_size/2))
+    x2 = min(game.width, int(game.bird_x + bird_size/2))
+    y1 = max(0, int(game.bird_y - bird_size/2))
+    y2 = min(game.height, int(game.bird_y + bird_size/2))
+    
+    # Red bird
+    canvas[y1:y2, x1:x2] = [255, 0, 0]
+    
+    return canvas
 
 def main():
-    st.title("Streamlit RPG")
+    st.title("Flappy Bird with Gravity")
     
-    game = Game()
-    char = st.session_state.character
-
-    # Main game interface
+    # Initialize game state
+    if 'game' not in st.session_state:
+        st.session_state.game = FlappyBirdGame()
+    
+    # Game display
+    game_container = st.empty()
+    
+    # Debug info
+    st.write(f"Bird Y: {st.session_state.game.bird_y:.2f}")
+    st.write(f"Velocity: {st.session_state.game.velocity:.2f}")
+    
+    # Controls
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("Character")
-        st.write(f"Level: {char.level}")
-        st.write(f"HP: {char.hp}/{char.max_hp}")
-        st.write(f"Attack: {char.attack}")
-        st.write(f"Defense: {char.defense}")
-        st.write(f"Gold: {char.gold}")
-        st.write(f"EXP: {char.exp}/{char.level * 100}")
-        
-        st.subheader("Inventory")
-        for i, item in enumerate(char.inventory):
-            if st.button(f"Use {item}", key=f"use_{i}_{item}"):
-                result = game.use_item(item)
-                st.write(result)
+        start_button = st.button("Start/Reset Game")
     
     with col2:
-        st.subheader("Shop")
-        for i, (item, details) in enumerate(game.items.items()):
-            cost = details['cost']
-            if st.button(f"Buy {item} ({cost} gold)", key=f"buy_{i}_{item}"):
-                result = game.buy_item(item)
-                st.write(result)
+        jump_button = st.button("Jump")
     
-    st.subheader("Battle")
-    for i, enemy_name in enumerate(game.enemies):
-        if st.button(f"Fight {enemy_name}", key=f"fight_{i}_{enemy_name}"):
-            result = game.battle(enemy_name)
-            st.write(result)
+    # Game logic
+    if start_button:
+        st.session_state.game.reset()
+    
+    if jump_button:
+        st.session_state.game.jump()
+    
+    # Update game if not game over
+    if not st.session_state.game.is_game_over:
+        st.session_state.game.update()
+    
+    # Draw game
+    game_image = draw_game(st.session_state.game)
+    game_container.image(game_image, caption=f"Score: {st.session_state.game.score}")
+    
+    # Game over check
+    if st.session_state.game.is_game_over:
+        st.error("Game Over!")
+        st.write(f"Final Score: {st.session_state.game.score}")
 
-    # Save button
-    if st.button("Save Game", key="save_game"):
-        save_data = {
-            'name': char.name,
-            'hp': char.hp,
-            'max_hp': char.max_hp,
-            'attack': char.attack,
-            'defense': char.defense,
-            'gold': char.gold,
-            'exp': char.exp,
-            'level': char.level,
-            'inventory': char.inventory
-        }
-        st.download_button(
-            "Download Save File",
-            data=json.dumps(save_data),
-            file_name="rpg_save.json",
-            key="download_save"
-        )
+# Create requirements file
+def create_requirements_file():
+    with open('requirements.txt', 'w') as f:
+        f.write("streamlit\nnumpy")
 
+create_requirements_file()
+
+# Run main function
 if __name__ == "__main__":
     main()
